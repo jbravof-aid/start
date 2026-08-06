@@ -41,13 +41,33 @@
             transform: translateY(-5px);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
+
+        /* Barra de desplazamiento sutil y semi-transparente para MAIN */
+        main::-webkit-scrollbar {
+            width: 6px;
+        }
+        main::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        main::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.25);
+            border-radius: 9999px;
+        }
+        main::-webkit-scrollbar-thumb:hover {
+            background: rgba(148, 163, 184, 0.5);
+        }
+        /* Compatibilidad con Firefox */
+        main {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(148, 163, 184, 0.25) transparent;
+        }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-300">
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 h-screen overflow-hidden flex flex-col transition-colors duration-300">
 
     <!-- Header / Navbar -->
-    <header class="sticky top-0 z-30 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <header class="flex-shrink-0 z-30 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
             <div class="flex items-center justify-between gap-4">
                 <div class="flex items-center gap-3">
                     <div class="bg-brand-600 text-white p-2.5 rounded-xl shadow-md">
@@ -91,33 +111,13 @@
     </header>
 
     <!-- Notificación Toast -->
-    <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 dark:border-slate-300 pointer-events-none">
+    <div id="toast" class="fixed bottom-24 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 border border-slate-700 dark:border-slate-300 pointer-events-none">
         <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 dark:text-emerald-600"></i>
         <span id="toastMessage" class="text-xs sm:text-sm font-medium">Notificación</span>
     </div>
 
-    <!-- Main Content -->
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        <!-- Controles de Busqueda y Filtros -->
-        <div class="mb-8 space-y-4 md:space-y-0 md:flex md:items-center md:justify-between gap-4">
-            <!-- Buscador -->
-            <div class="relative flex-1 max-w-md">
-                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                <input 
-                    type="text" 
-                    id="searchInput"
-                    oninput="filterCards()"
-                    placeholder="Buscar enlaces por título, descripción o etiqueta..." 
-                    class="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none transition shadow-sm text-sm"
-                >
-            </div>
-
-            <!-- Filtros de categoría -->
-            <div class="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0 scrollbar-none" id="categoryFilters">
-                <!-- Se llena dinámicamente por JS -->
-            </div>
-        </div>
+    <!-- Main Content (Único contenedor con scroll) -->
+    <main class="flex-1 overflow-y-auto max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
         <!-- Counter info -->
         <div class="flex items-center justify-between mb-4">
@@ -131,7 +131,7 @@
         </div>
 
         <!-- Card Grid Container -->
-        <div id="cardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div id="cardsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pb-4">
             <!-- Las tarjetas se inyectarán aquí dinámicamente -->
         </div>
 
@@ -145,6 +145,37 @@
         </div>
 
     </main>
+
+    <!-- Footer con Controles de Búsqueda y Filtros -->
+    <footer class="flex-shrink-0 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-700 shadow-lg z-30 py-3 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto space-y-3">
+            <!-- Controles de Busqueda y Filtros -->
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <!-- Buscador -->
+                <div class="relative flex-1 max-w-md">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                    <input 
+                        type="text" 
+                        id="searchInput"
+                        oninput="filterCards()"
+                        placeholder="Buscar enlaces por título, descripción o etiqueta..." 
+                        class="w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-brand-500 focus:outline-none transition shadow-inner text-xs sm:text-sm"
+                    >
+                </div>
+
+                <!-- Filtros de categoría -->
+                <div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 scrollbar-none" id="categoryFilters">
+                    <!-- Se llena dinámicamente por JS -->
+                </div>
+            </div>
+
+            <!-- Credits / Legal -->
+            <div class="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500">
+                <span>LinkHub Directory</span>
+                <span>Controles de filtrado e interactividad integrados en el Footer</span>
+            </div>
+        </div>
+    </footer>
 
     <!-- Modal para añadir nueva tarjeta -->
     <div id="addCardModal" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4">
@@ -448,6 +479,14 @@
         }
 
         /**
+         * Abre la URL especificada en una nueva ventana o pestaña.
+         * @param {string} url - Dirección URL de destino
+         */
+        function openInNewTab(url) {
+            window.open(url, '_blank', 'noopener,noreferrer');
+        }
+
+        /**
          * Renderiza la lista de tarjetas basándose en el array recibido y los filtros aplicados.
          * Cada tarjeta cuenta con Header, Body y Footer explicito.
          */
@@ -511,11 +550,16 @@
                             ` : ''}
                         </div>
 
-                        <!-- Botón flotante externo en el Header -->
-                        <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <span class="w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 flex items-center justify-center shadow-md">
+                        <!-- Botón flotante externo en el Header (Abre en nueva pestaña) -->
+                        <div class="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <button 
+                                type="button"
+                                onclick="event.stopPropagation(); openInNewTab('${item.href}')" 
+                                title="Abrir en nueva ventana"
+                                class="w-8 h-8 rounded-full bg-white/90 dark:bg-slate-800/90 text-slate-700 dark:text-slate-200 flex items-center justify-center shadow-md hover:bg-brand-600 hover:text-white dark:hover:bg-brand-600 dark:hover:text-white transition-colors"
+                            >
                                 <i class="fa-solid fa-arrow-up-right-from-square text-xs"></i>
-                            </span>
+                            </button>
                         </div>
                     </header>
 
@@ -544,7 +588,8 @@
                         </div>
                         
                         <button 
-                            onclick="navigateTo('${item.href}')" 
+                            type="button"
+                            onclick="event.stopPropagation(); navigateTo('${item.href}')" 
                             class="flex items-center gap-1.5 text-brand-600 dark:text-brand-400 font-semibold hover:underline group-hover:translate-x-0.5 transition-transform"
                         >
                             <span>Ir al enlace</span>
