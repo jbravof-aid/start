@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTMLIframeManager</title>
+</head>
+<body>
+  <div id="iframe-container"></div>
+
+  <script>
+  class HTMLIframeManager {
+  constructor(containerSelector = "#iframe-container", options = {}) {
+    // Propiedades Iniciales
+    this.title = "Navegador Iframe Manager Pro";
+    this.version = "1.2.0";
+    this.allowPopups = false;
+
+    // Lógica del Constructor
+    this.container = typeof containerSelector === "string" 
+      ? document.querySelector(containerSelector) 
+      : containerSelector;
+    
+    if (!this.container) {
+      this.container = document.querySelector("#iframe-container") || document.body;
+    }
+    
+    this.currentUrl = (options && options.initialUrl) || "https://example.com";
+    this.history = [this.currentUrl];
+    this.historyIndex = 0;
+    this.isSecure = true;
+    this.bookmarks = (options && options.bookmarks) || ["https://example.com", "https://wikipedia.org", "https://github.com"];
+    
+    if (typeof this.render === "function") {
+      this.render();
+    }
+  }
+
+  render() {
+    if (!this.container) return;
+    
+    const getHost = (u) => {
+      try { return new URL(u).hostname; } catch(e) { return u; }
+    };
+    
+    this.container.innerHTML = `
+      <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl text-slate-200 font-sans w-full max-w-2xl mx-auto">
+        <!-- Toolbar -->
+        <div class="p-3 bg-slate-800/80 border-b border-slate-700/80 flex flex-wrap items-center gap-2">
+          <div class="flex items-center gap-1.5">
+            <button id="btn-back" class="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 transition" ${this.historyIndex === 0 ? 'disabled' : ''}>
+              ◀
+            </button>
+            <button id="btn-forward" class="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-slate-200 transition" ${this.historyIndex === this.history.length - 1 ? 'disabled' : ''}>
+              ▶
+            </button>
+            <button id="btn-refresh" class="p-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 transition">
+              🔄
+            </button>
+          </div>
+    
+          <!-- Address Input -->
+          <div class="flex-1 min-w-[200px] flex items-center bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-700 focus-within:border-indigo-500 transition">
+            <span class="text-xs mr-2">${this.isSecure ? '🔒' : '🌐'}</span>
+            <input id="url-input" type="text" value="${this.currentUrl || ''}" class="bg-transparent border-none outline-none text-xs w-full text-slate-200 font-mono" placeholder="https://..." />
+            <button id="btn-go" class="ml-2 text-xs bg-indigo-600 hover:bg-indigo-500 px-2.5 py-1 rounded text-white font-medium transition">
+              Ir
+            </button>
+          </div>
+        </div>
+    
+        <!-- Bookmarks bar -->
+        <div class="px-3 py-1.5 bg-slate-900/90 border-b border-slate-800 flex items-center gap-2 overflow-x-auto text-xs text-slate-400">
+          <span class="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Favoritos:</span>
+          ${(this.bookmarks || []).map(b => `<button class="bm-item hover:text-indigo-400 transition" data-url="${b}">⭐ ${getHost(b)}</button>`).join('')}
+        </div>
+    
+        <!-- Content Area -->
+        <div class="p-5 min-h-[220px] flex flex-col justify-center items-center bg-slate-950/50">
+          <div class="max-w-md w-full bg-slate-800/60 p-5 rounded-xl border border-slate-700/60 shadow-lg text-center">
+            <div class="text-4xl mb-3">🌐</div>
+            <h3 class="font-bold text-lg text-white mb-1">${this.title}</h3>
+            <p class="text-xs text-slate-400 mb-4">Simulador de navegador embebido dentro del iframe sandbox.</p>
+            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700/80 text-left font-mono text-xs space-y-1">
+              <div class="text-indigo-400 font-semibold">URL Actual:</div>
+              <div class="text-slate-200 break-all bg-slate-950 p-1.5 rounded">${this.currentUrl}</div>
+              <div class="text-slate-400 text-[11px] mt-2">Historial: ${(this.historyIndex || 0) + 1} de ${(this.history || []).length} páginas</div>
+            </div>
+          </div>
+        </div>
+    
+        <!-- Status Log -->
+        <div id="log-panel" class="px-4 py-2 bg-slate-900 border-t border-slate-800 font-mono text-[11px] text-emerald-400 flex items-center justify-between">
+          <span>● Sistema Activo (v${this.version})</span>
+          <span class="text-slate-500">Iframe Event Listener Ready</span>
+        </div>
+      </div>
+    `;
+    
+    this.bindEvents();
+  }
+
+  bindEvents() {
+    const goBtn = this.container.querySelector('#btn-go');
+    const urlInput = this.container.querySelector('#url-input');
+    const backBtn = this.container.querySelector('#btn-back');
+    const fwdBtn = this.container.querySelector('#btn-forward');
+    const refBtn = this.container.querySelector('#btn-refresh');
+    
+    if (goBtn && urlInput) {
+      goBtn.onclick = () => this.navigate(urlInput.value);
+      urlInput.onkeyup = (e) => { if (e.key === 'Enter') this.navigate(urlInput.value); };
+    }
+    
+    if (backBtn) backBtn.onclick = () => this.goBack();
+    if (fwdBtn) fwdBtn.onclick = () => this.goForward();
+    if (refBtn) refBtn.onclick = () => this.render();
+    
+    this.container.querySelectorAll('.bm-item').forEach(el => {
+      el.onclick = () => this.navigate(el.getAttribute('data-url'));
+    });
+  }
+
+  navigate(newUrl) {
+    if (!newUrl) return;
+    if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
+      newUrl = 'https://' + newUrl;
+    }
+    this.currentUrl = newUrl;
+    this.history = this.history.slice(0, this.historyIndex + 1);
+    this.history.push(newUrl);
+    this.historyIndex = this.history.length - 1;
+    this.render();
+  }
+
+  goBack() {
+    if (this.historyIndex > 0) {
+      this.historyIndex--;
+      this.currentUrl = this.history[this.historyIndex];
+      this.render();
+    }
+  }
+
+  goForward() {
+    if (this.historyIndex < this.history.length - 1) {
+      this.historyIndex++;
+      this.currentUrl = this.history[this.historyIndex];
+      this.render();
+    }
+  }
+}
+
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      const targetEl = document.getElementById('iframe-container') || document.body;
+      const appInstance = new HTMLIframeManager("#iframe-container");
+      window.__appInstance = appInstance;
+
+      if (appInstance && !appInstance.container && targetEl) {
+        appInstance.container = targetEl;
+        if (typeof appInstance.render === 'function') {
+          appInstance.render();
+        }
+      }
+    } catch (err) {
+      console.error('Error instanciando la clase HTMLIframeManager:', err);
+    }
+  });
+</script>
+</body>
+</html>

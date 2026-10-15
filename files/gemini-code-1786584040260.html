@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Archivos con Dexie</title>
+    <!-- Importar Dexie.js -->
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <style>
+        :root { --primary: #007bff; --bg: #f4f4f9; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); padding: 20px; margin: 0; }
+        .grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        button, input[type="file"]::file-selector-button {
+            background: var(--primary); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;
+        }
+        button:hover { background: #0056b3; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        li button { background: #28a745; font-size: 0.8em; }
+        textarea { width: 100%; height: 400px; font-family: monospace; padding: 10px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; box-sizing: border-box; }
+        .status { margin-top: 10px; font-size: 0.9em; color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+    <h2 style="text-align: center;">Gestor JSON/HTML con Dexie.js</h2>
+
+    <div class="grid">
+        <!-- Panel Lateral: Carga y Lista -->
+        <div class="card">
+            <h3>1. Importar Archivo</h3>
+            <input type="file" id="fileInput" accept=".json, .html" />
+            
+            <h3 style="margin-top: 30px;">2. Archivos en IndexedDB</h3>
+            <ul id="fileList"></ul>
+        </div>
+
+        <!-- Panel Principal: Editor -->
+        <div class="card">
+            <h3>3. Editor (Parse & Stringify)</h3>
+            <input type="hidden" id="editId" />
+            <p><strong>Editando:</strong> <span id="editName">Ninguno</span> (<span id="editType">-</span>)</p>
+            
+            <textarea id="editor" placeholder="Selecciona un archivo para editar su contenido..." disabled></textarea>
+            
+            <div style="margin-top: 15px; display: flex; gap: 10px;">
+                <button id="btnFormat" disabled onclick="formatContent()">Formatear / Parsear</button>
+                <button id="btnSave" disabled onclick="saveContent()">Actualizar en Base de Datos</button>
+            </div>
+            <div id="statusMsg" class="status"></div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Inicializar Dexie
+        const db = new Dexie("FileParserDB");
+        db.version(1).stores({
+            documents: '++id, name, type, content, timestamp'
+        });
+
+        // 2. Manejador de carga de archivos (Import)
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const rawContent = event.target.result;
+                const extension = file.name.split('.').pop().toLowerCase();
+                
+                // Guardar en la base de datos
+                await db.documents.add({
+                    name: file.name,
+                    type: extension,
+                    content: rawContent,
+                    timestamp: new Date().getTime()
+                });
+                
+                showStatus('Archivo guardado en la base de datos.');
+                loadFileList();
+                e.target.value = ''; // Limpiar el input
+            };
+            reader.readAsText(file);
+        });
+
+        // 3. Cargar la lista de archivos guardados
+        async function loadFileList() {
+            const files = await db.documents.orderBy('timestamp').reverse().toArray();
+            const list = document.getElementById('fileList');
+            list.innerHTML = '';
+
+            files.forEach(file => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span><strong>${file.name}</strong></span>
+                    <button onclick="openEditor(${file.id})">Abrir</button>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // 4. Abrir archivo en el editor
+        async function openEditor(id) {
+            const file = await db.documents.get(id);
+            if (!file) return;
+
+            document.getElementById('editId').value = file.id;
+            document.getElementById('editName').innerText = file.name;
+            document.getElementById('editType').innerText = file.type.toUpperCase();
+            
+            const editor = document.getElementById('editor');
+            editor.value = file.content;
+            editor.disabled = false;
+
+            document.getElementById('btnFormat').disabled = false;
+            document.getElementById('btnSave').disabled = false;
+            showStatus('Archivo cargado para edición.', false);
+        }
+
+        // 5. Parse y Stringify (Formateo)
+        function formatContent() {
+            const editor = document.getElementById('editor');
+            const type = document.getElementById('editType').innerText.toLowerCase();
+            const raw = editor.value;
+
+            try {
+                if (type === 'json') {
+                    // Parseamos el JSON para verificar errores
+                    const parsed = JSON.parse(raw);
+                    // Hacemos Stringify con indentación de 4 espacios
+                    editor.value = JSON.stringify(parsed, null, 4);
+                    showStatus('JSON parseado y formateado correctamente.', false);
+                } else if (type === 'html') {
+                    // Parseamos el HTML usando DOMParser
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(raw, 'text/html');
+                    
+                    // Comprobación de errores nativa del parser XML/HTML
+                    const errorNode = doc.querySelector('parsererror');
+                    if (errorNode) throw new Error('Error en sintaxis HTML');
+                    
+                    // Hacemos stringify (serializamos) de vuelta a texto
+                    editor.value = doc.documentElement.outerHTML;
+                    showStatus('HTML parseado y estructurado correctamente.', false);
+                }
+            } catch (err) {
+                showStatus('Error al parsear: ' + err.message, true);
+            }
+        }
+
+        // 6. Actualizar (Guardar cambios editados de vuelta a IndexedDB)
+        async function saveContent() {
+            const id = parseInt(document.getElementById('editId').value);
+            const newContent = document.getElementById('editor').value;
+            const type = document.getElementById('editType').innerText.toLowerCase();
+
+            // Validar antes de guardar
+            try {
+                if (type === 'json') JSON.parse(newContent);
+                if (type === 'html') new DOMParser().parseFromString(newContent, 'text/html');
+            } catch (err) {
+                if(!confirm('El archivo contiene errores de sintaxis. ¿Quieres guardarlo de todos modos?')) {
+                    return;
+                }
+            }
+
+            await db.documents.update(id, {
+                content: newContent,
+                timestamp: new Date().getTime() // Actualizamos la fecha de modificación
+            });
+            
+            showStatus('¡Cambios guardados en Dexie con éxito!');
+            loadFileList();
+        }
+
+        // Utilidad para mensajes
+        function showStatus(msg, isError = false) {
+            const el = document.getElementById('statusMsg');
+            el.innerText = msg;
+            el.className = isError ? 'status error' : 'status';
+            setTimeout(() => { el.innerText = ''; }, 3000);
+        }
+
+        // Cargar lista inicial al arrancar
+        window.onload = loadFileList;
+    </script>
+</body>
+</html>

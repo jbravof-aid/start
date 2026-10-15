@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor JSON/HTML con Dexie</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Dexie.js for IndexedDB -->
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <style>
+        /* Custom scrollbar for a premium look */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        <header class="mb-8 flex items-center gap-3">
+            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+            <div>
+                <h1 class="text-2xl font-bold text-slate-900">Gestor de Archivos Local</h1>
+                <p class="text-sm text-slate-500">IndexedDB + Dexie.js (Parse & Stringify)</p>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            
+            <!-- Sidebar (Upload & List) -->
+            <div class="lg:col-span-4 space-y-6">
+                <!-- Upload Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                        Importar Archivo
+                    </h2>
+                    <div class="relative">
+                        <input type="file" id="fileInput" accept=".json, .html" class="block w-full text-sm text-slate-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer transition-colors" />
+                    </div>
+                    <p class="text-xs text-slate-400 mt-2">Soporta formatos .json y .html</p>
+                </div>
+
+                <!-- Files List Card -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col h-[500px]">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                        Archivos Guardados
+                    </h2>
+                    <ul id="fileList" class="flex-1 overflow-y-auto space-y-2 pr-2">
+                        <!-- File items will be injected here -->
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Main Editor Area -->
+            <div class="lg:col-span-8">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 h-full flex flex-col">
+                    
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h2 class="text-lg font-semibold">Editor de Código</h2>
+                            <div class="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                                <span class="bg-slate-100 px-2 py-1 rounded text-xs font-mono border border-slate-200" id="editType">TIPO</span>
+                                <span id="editName">Ningún archivo seleccionado</span>
+                            </div>
+                            <input type="hidden" id="editId" />
+                        </div>
+                        
+                        <div class="flex gap-2">
+                            <button id="btnFormat" disabled class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                                Parse / Format
+                            </button>
+                            <button id="btnConvert" disabled class="hidden px-4 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                                <span id="btnConvertText">Convertir</span>
+                            </button>
+                            <button id="btnSave" disabled class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm shadow-blue-200">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                Guardar en DB
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Status Notification -->
+                    <div id="statusAlert" class="hidden mb-4 p-3 rounded-lg text-sm font-medium transition-all"></div>
+
+                    <!-- Textarea Editor -->
+                    <textarea id="editor" disabled class="flex-1 w-full min-h-[500px] p-4 font-mono text-sm bg-slate-900 text-emerald-400 rounded-lg border border-slate-800 focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none disabled:opacity-75 disabled:bg-slate-100 disabled:text-slate-500 shadow-inner" placeholder="Selecciona o importa un archivo para comenzar..."></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Modal (Replaces window.confirm) -->
+    <div id="confirmModal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 transform scale-95 transition-transform" id="modalContent">
+            <div class="flex items-center gap-3 text-amber-600 mb-4">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <h3 class="text-lg font-bold">Advertencia de Sintaxis</h3>
+            </div>
+            <p class="text-slate-600 mb-6" id="modalText">El archivo contiene errores. ¿Guardar de todos modos?</p>
+            <div class="flex justify-end gap-3">
+                <button id="modalBtnCancel" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors">Cancelar</button>
+                <button id="modalBtnConfirm" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors shadow-sm shadow-amber-200">Guardar de todos modos</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. Initialize Dexie Database
+        const db = new Dexie("FileParserDB");
+        db.version(1).stores({
+            documents: '++id, name, type, content, timestamp'
+        });
+
+        // UI Element References
+        const elements = {
+            fileInput: document.getElementById('fileInput'),
+            fileList: document.getElementById('fileList'),
+            editor: document.getElementById('editor'),
+            editId: document.getElementById('editId'),
+            editName: document.getElementById('editName'),
+            editType: document.getElementById('editType'),
+            btnFormat: document.getElementById('btnFormat'),
+            btnConvert: document.getElementById('btnConvert'), // New convert button
+            btnConvertText: document.getElementById('btnConvertText'),
+            btnSave: document.getElementById('btnSave'),
+            statusAlert: document.getElementById('statusAlert'),
+            confirmModal: document.getElementById('confirmModal'),
+            modalBtnConfirm: document.getElementById('modalBtnConfirm'),
+            modalBtnCancel: document.getElementById('modalBtnCancel'),
+            modalText: document.getElementById('modalText')
+        };
+
+        let currentConfirmCallback = null;
+
+        // 2. Handle File Upload (Import)
+        elements.fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const rawContent = event.target.result;
+                const extension = file.name.split('.').pop().toLowerCase();
+                
+                if (extension !== 'json' && extension !== 'html') {
+                    showStatus('Solo se soportan archivos .json o .html', 'error');
+                    return;
+                }
+
+                try {
+                    await db.documents.add({
+                        name: file.name,
+                        type: extension,
+                        content: rawContent,
+                        timestamp: new Date().getTime()
+                    });
+                    
+                    showStatus(`Archivo '${file.name}' importado correctamente.`, 'success');
+                    loadFileList();
+                } catch (err) {
+                    showStatus('Error al guardar en base de datos: ' + err.message, 'error');
+                }
+                
+                e.target.value = ''; // Reset input
+            };
+            reader.readAsText(file);
+        });
+
+        // 3. Load File List from IndexedDB
+        async function loadFileList() {
+            const files = await db.documents.orderBy('timestamp').reverse().toArray();
+            elements.fileList.innerHTML = '';
+
+            if (files.length === 0) {
+                elements.fileList.innerHTML = `<li class="text-sm text-slate-400 p-3 text-center">No hay archivos en la base de datos. Importa uno para comenzar.</li>`;
+                return;
+            }
+
+            files.forEach(file => {
+                const li = document.createElement('li');
+                li.className = "flex justify-between items-center p-3 hover:bg-slate-50 rounded-lg border border-transparent hover:border-slate-200 transition-colors group cursor-pointer";
+                li.onclick = () => openEditor(file.id);
+                
+                const iconColor = file.type === 'json' ? 'text-amber-500' : 'text-orange-500';
+                
+                li.innerHTML = `
+                    <div class="flex items-center gap-3 overflow-hidden">
+                        <div class="p-2 bg-slate-100 rounded-md group-hover:bg-white transition-colors">
+                            <span class="font-bold text-xs uppercase ${iconColor}">${file.type}</span>
+                        </div>
+                        <div class="truncate">
+                            <p class="text-sm font-medium text-slate-700 truncate">${file.name}</p>
+                            <p class="text-xs text-slate-400">${new Date(file.timestamp).toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <button class="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-500 transition-all rounded-md hover:bg-red-50" onclick="deleteFile(event, ${file.id})">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    </button>
+                `;
+                elements.fileList.appendChild(li);
+            });
+        }
+
+        // 4. Open File in Editor
+        async function openEditor(id) {
+            const file = await db.documents.get(id);
+            if (!file) return;
+
+            elements.editId.value = file.id;
+            elements.editName.innerText = file.name;
+            elements.editType.innerText = file.type.toUpperCase();
+            
+            elements.editor.value = file.content;
+            elements.editor.disabled = false;
+            elements.btnFormat.disabled = false;
+            elements.btnSave.disabled = false;
+            
+            elements.btnConvert.disabled = false;
+            elements.btnConvert.classList.remove('hidden');
+            
+            if(file.type === 'json') {
+                elements.editor.className = elements.editor.className.replace('text-emerald-400', 'text-amber-400');
+                elements.btnConvertText.innerText = "Convertir a HTML";
+                elements.btnConvert.onclick = convertJsonToHtml;
+            } else {
+                elements.editor.className = elements.editor.className.replace('text-amber-400', 'text-emerald-400');
+                elements.btnConvertText.innerText = "Convertir a JSON";
+                elements.btnConvert.onclick = convertHtmlToJson;
+            }
+
+            showStatus(`Editando: ${file.name}`, 'info');
+        }
+
+        // Delete File functionality
+        async function deleteFile(e, id) {
+            e.stopPropagation(); // Prevent opening the editor
+            await db.documents.delete(id);
+            
+            // If the deleted file is currently open, clear the editor
+            if(parseInt(elements.editId.value) === id) {
+                elements.editId.value = '';
+                elements.editName.innerText = 'Ningún archivo seleccionado';
+                elements.editType.innerText = 'TIPO';
+                elements.editor.value = '';
+                elements.editor.disabled = true;
+                elements.btnFormat.disabled = true;
+                elements.btnSave.disabled = true;
+                
+                elements.btnConvert.disabled = true;
+                elements.btnConvert.classList.add('hidden');
+            }
+            
+            showStatus('Archivo eliminado.', 'success');
+            loadFileList();
+        }
+
+        // 5. Parse and Stringify (Formatting)
+        elements.btnFormat.addEventListener('click', () => {
+            const type = elements.editType.innerText.toLowerCase();
+            const raw = elements.editor.value;
+
+            try {
+                if (type === 'json') {
+                    const parsed = JSON.parse(raw); // Valida
+                    elements.editor.value = JSON.stringify(parsed, null, 4); // Stringify bonito
+                    showStatus('JSON validado y formateado.', 'success');
+                } else if (type === 'html') {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(raw, 'text/html');
+                    
+                    const errorNode = doc.querySelector('parsererror');
+                    if (errorNode) {
+                        throw new Error(errorNode.innerText || 'Error en la estructura HTML');
+                    }
+                    
+                    // Re-serializar. En HTML es complicado indentar perfectamente sin librerías pesadas, 
+                    // pero DOMParser limpia etiquetas mal cerradas.
+                    // Aplicamos un formateo básico separando las etiquetas principales.
+                    let formattedHTML = doc.documentElement.outerHTML;
+                    formattedHTML = formattedHTML.replace(/></g, '>\n<'); 
+                    elements.editor.value = formattedHTML;
+                    
+                    showStatus('HTML estructurado y validado.', 'success');
+                }
+            } catch (err) {
+                showStatus('Error de sintaxis: ' + err.message, 'error');
+            }
+        });
+
+        function convertJsonToHtml() {
+            const raw = elements.editor.value;
+            try {
+                const data = JSON.parse(raw);
+                let htmlOutput = '<div class="json-to-html-container">\n';
+
+                if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object') {
+                    // It's an array of objects -> Create a Table
+                    htmlOutput += '  <table border="1">\n    <thead>\n      <tr>\n';
+                    // Extract headers from the first object
+                    const headers = Object.keys(data[0]);
+                    headers.forEach(header => {
+                        htmlOutput += `        <th>${header}</th>\n`;
+                    });
+                    htmlOutput += '      </tr>\n    </thead>\n    <tbody>\n';
+                    
+                    // Create rows
+                    data.forEach(row => {
+                        htmlOutput += '      <tr>\n';
+                        headers.forEach(header => {
+                            htmlOutput += `        <td>${row[header] !== undefined ? row[header] : ''}</td>\n`;
+                        });
+                        htmlOutput += '      </tr>\n';
+                    });
+                    htmlOutput += '    </tbody>\n  </table>\n';
+                } else if (typeof data === 'object' && data !== null) {
+                    // It's a simple object -> Create a Definition List
+                    htmlOutput += '  <dl>\n';
+                    for (const key in data) {
+                        htmlOutput += `    <dt><strong>${key}</strong></dt>\n`;
+                        // Basic handling for nested objects/arrays within the simple object
+                        const val = typeof data[key] === 'object' ? JSON.stringify(data[key]) : data[key];
+                        htmlOutput += `    <dd>${val}</dd>\n`;
+                    }
+                    htmlOutput += '  </dl>\n';
+                } else {
+                     htmlOutput += `  <p>${data}</p>\n`;
+                }
+                
+                htmlOutput += '</div>';
+
+                // Update UI state to HTML
+                elements.editType.innerText = 'HTML';
+                let oldName = elements.editName.innerText;
+                let newName = oldName.substring(0, oldName.lastIndexOf('.')) + '.html';
+                elements.editName.innerText = newName;
+                
+                elements.editor.value = htmlOutput;
+                elements.editor.className = elements.editor.className.replace('text-amber-400', 'text-emerald-400');
+                
+                // Update Button
+                elements.btnConvertText.innerText = "Convertir a JSON";
+                elements.btnConvert.onclick = convertHtmlToJson;
+
+                showStatus('Convertido a HTML. ¡No olvides guardar!', 'success');
+
+            } catch (err) {
+                showStatus('Error: JSON inválido. ' + err.message, 'error');
+            }
+        }
+
+        function convertHtmlToJson() {
+            const raw = elements.editor.value;
+            try {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(raw, 'text/html');
+                
+                const errorNode = doc.querySelector('parsererror');
+                if (errorNode) {
+                    throw new Error('El HTML contiene errores de sintaxis y no puede ser parseado.');
+                }
+
+                // Helper recursive function to convert DOM Node to JS Object
+                const domToJson = (node) => {
+                    let obj = {
+                        type: node.localName || node.nodeName.toLowerCase()
+                    };
+                    
+                    // Get attributes
+                    if (node.attributes && node.attributes.length > 0) {
+                        obj.props = {};
+                        for (let i = 0; i < node.attributes.length; i++) {
+                            const attr = node.attributes[i];
+                            obj.props[attr.nodeName] = attr.nodeValue;
+                        }
+                    }
+
+                    // Get children or text content
+                    let children = [];
+                    // We only process Element nodes (1) and non-empty Text nodes (3)
+                    for (let i = 0; i < node.childNodes.length; i++) {
+                        const childNode = node.childNodes[i];
+                        if (childNode.nodeType === Node.ELEMENT_NODE) {
+                            children.push(domToJson(childNode));
+                        } else if (childNode.nodeType === Node.TEXT_NODE) {
+                            const textContent = childNode.textContent.trim();
+                            if (textContent) {
+                                children.push(textContent);
+                            }
+                        }
+                    }
+
+                    if (children.length > 0) {
+                         // If there's only one child and it's text, simplify the structure
+                        if(children.length === 1 && typeof children[0] === 'string') {
+                            obj.children = children[0];
+                        } else {
+                            obj.children = children;
+                        }
+                    }
+                    
+                    return obj;
+                };
+
+                // We usually just want the body content, not the whole HTML document wrapper 
+                // that DOMParser creates automatically.
+                const rootElement = doc.body;
+                
+                let jsonResult = [];
+                // Process all top level elements in the body
+                for (let i = 0; i < rootElement.childNodes.length; i++) {
+                    const node = rootElement.childNodes[i];
+                    if (node.nodeType === Node.ELEMENT_NODE) {
+                         jsonResult.push(domToJson(node));
+                    }
+                }
+                
+                // If there's only one top level element, extract it from array for cleaner JSON
+                if(jsonResult.length === 1) {
+                    jsonResult = jsonResult[0];
+                }
+
+                // Update UI state to JSON
+                elements.editType.innerText = 'JSON';
+                let oldName = elements.editName.innerText;
+                let newName = oldName.substring(0, oldName.lastIndexOf('.')) + '.json';
+                elements.editName.innerText = newName;
+                
+                elements.editor.value = JSON.stringify(jsonResult, null, 4);
+                elements.editor.className = elements.editor.className.replace('text-emerald-400', 'text-amber-400');
+                
+                // Update Button
+                elements.btnConvertText.innerText = "Convertir a HTML";
+                elements.btnConvert.onclick = convertJsonToHtml;
+
+                showStatus('Convertido a JSON. ¡No olvides guardar!', 'success');
+
+            } catch (err) {
+                 showStatus('Error al convertir HTML: ' + err.message, 'error');
+            }
+        }
+
+        // 6. Save Updates back to IndexedDB
+        elements.btnSave.addEventListener('click', () => {
+            const type = elements.editType.innerText.toLowerCase();
+            const newContent = elements.editor.value;
+            
+            let hasErrors = false;
+            let errorMsg = '';
+
+            // Validar
+            try {
+                if (type === 'json') JSON.parse(newContent);
+                if (type === 'html') {
+                    const doc = new DOMParser().parseFromString(newContent, 'text/html');
+                    if (doc.querySelector('parsererror')) throw new Error('Etiquetas mal formateadas');
+                }
+            } catch (err) {
+                hasErrors = true;
+                errorMsg = err.message;
+            }
+
+            if (hasErrors) {
+                // Usamos nuestro modal personalizado en lugar de confirm()
+                showModal(
+                    `Se detectó un error al parsear (${errorMsg}). Si guardas ahora, el archivo podría estar corrupto. ¿Deseas forzar el guardado?`, 
+                    forceSaveToDB
+                );
+            } else {
+                forceSaveToDB();
+            }
+        });
+
+        async function forceSaveToDB() {
+            const id = parseInt(elements.editId.value);
+            const newContent = elements.editor.value;
+            const currentType = elements.editType.innerText.toLowerCase();
+            const currentName = elements.editName.innerText;
+
+            try {
+                await db.documents.update(id, {
+                    name: currentName,
+                    type: currentType,
+                    content: newContent,
+                    timestamp: new Date().getTime()
+                });
+                showStatus('Cambios guardados correctamente.', 'success');
+                loadFileList(); // Refresh timestamps
+            } catch (err) {
+                showStatus('Error al guardar: ' + err.message, 'error');
+            }
+        }
+
+        // --- Custom UI Utilities ---
+
+        function showStatus(msg, type = 'info') {
+            const el = elements.statusAlert;
+            el.innerText = msg;
+            el.classList.remove('hidden', 'bg-blue-100', 'text-blue-700', 'bg-green-100', 'text-green-700', 'bg-red-100', 'text-red-700');
+            
+            if(type === 'success') el.classList.add('bg-green-100', 'text-green-700');
+            else if (type === 'error') el.classList.add('bg-red-100', 'text-red-700');
+            else el.classList.add('bg-blue-100', 'text-blue-700');
+
+            setTimeout(() => { 
+                el.classList.add('hidden'); 
+            }, 4000);
+        }
+
+        function showModal(text, onConfirm) {
+            elements.modalText.innerText = text;
+            currentConfirmCallback = onConfirm;
+            elements.confirmModal.classList.remove('hidden');
+            // Small animation trick
+            setTimeout(() => {
+                document.getElementById('modalContent').classList.remove('scale-95');
+                document.getElementById('modalContent').classList.add('scale-100');
+            }, 10);
+        }
+
+        function hideModal() {
+            document.getElementById('modalContent').classList.remove('scale-100');
+            document.getElementById('modalContent').classList.add('scale-95');
+            setTimeout(() => {
+                elements.confirmModal.classList.add('hidden');
+                currentConfirmCallback = null;
+            }, 150);
+        }
+
+        elements.modalBtnCancel.addEventListener('click', hideModal);
+        elements.modalBtnConfirm.addEventListener('click', () => {
+            if (currentConfirmCallback) currentConfirmCallback();
+            hideModal();
+        });
+
+        // Load initial list
+        window.onload = loadFileList;
+
+    </script>
+</body>
+</html>
